@@ -24,8 +24,8 @@ base_demand = {
     6: 35
 }
 
-vehicle_count = 3
-vehicle_capacity = 40
+vehicle_count = 4
+vehicle_capacity = 100
 
 distance = {
     (i, j): abs(i - j) * 10 + 5
