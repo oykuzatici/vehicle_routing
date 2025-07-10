@@ -32,46 +32,60 @@ distance = {
     for i in customers for j in customers if i != j
 }
 
-# Define updated demands with multiple changes
-updated_demand = base_demand.copy()
-updated_demand[2] = base_demand[2] * 1.40  # Customer 2 demand increases by 40%
-updated_demand[6] = base_demand[6] * 0.35  # Customer 6 demand decreases by 65%
+def optimize_with_demand(demand_changes: dict):
+    """
+    demand_changes: {customer_id: multiplier} formatında
+    Örnek: {2: 1.40, 6: 0.35} müşteri 2 talebi %40 artar, müşteri 6 talebi %65 azalır.
+    """
 
-# OPTIGUIDE CONSTRAINT CODE GOES HERE
+    # Talebi güncelle (base_demand üzerinden)
+    updated_demand = base_demand.copy()
+    for cust, mult in demand_changes.items():
+        updated_demand[cust] = base_demand[cust] * mult
 
-# Initialize the model anew to ensure consistency with updated demands
-model = Model("CVRP")
+    # OPTIGUIDE CONSTRAINT CODE GOES HERE
 
-x = model.addVars(distance.keys(), vtype=GRB.BINARY, name="x")
-u = model.addVars(customers, vtype=GRB.CONTINUOUS, lb=0, name="u")
+    # Initialize the model anew to ensure consistency with updated demands
+    model = Model("CVRP")
 
-# Set objective function to minimize total travel distance
-model.setObjective(quicksum(distance[i, j] * x[i, j] for i, j in distance), GRB.MINIMIZE)
+    x = model.addVars(distance.keys(), vtype=GRB.BINARY, name="x")
+    u = model.addVars(customers, vtype=GRB.CONTINUOUS, lb=0, name="u")
 
-# Each customer must be visited exactly once (inbound and outbound)
-for j in customers[1:]:
-    model.addConstr(quicksum(x[i, j] for i in customers if i != j) == 1, name=f"visit_in_{j}")
-    model.addConstr(quicksum(x[j, k] for k in customers if k != j) == 1, name=f"visit_out_{j}")
+    # Set objective function to minimize total travel distance
+    model.setObjective(quicksum(distance[i, j] * x[i, j] for i, j in distance), GRB.MINIMIZE)
 
-# Number of vehicles leaving and returning to the depot equals vehicle count
-model.addConstr(quicksum(x[0, j] for j in customers if j != 0) == vehicle_count, name="depot_departure")
-model.addConstr(quicksum(x[i, 0] for i in customers if i != 0) == vehicle_count, name="depot_return")
-
-# Subtour elimination and capacity constraints using updated demands
-for i in customers[1:]:
+    # Each customer must be visited exactly once (inbound and outbound)
     for j in customers[1:]:
-        if i != j:
-            model.addConstr(
-                u[i] - u[j] + vehicle_capacity * x[i, j] <= vehicle_capacity - updated_demand[j],
-                name=f"subtour_{i}_{j}"
-            )
+        model.addConstr(quicksum(x[i, j] for i in customers if i != j) == 1, name=f"visit_in_{j}")
+        model.addConstr(quicksum(x[j, k] for k in customers if k != j) == 1, name=f"visit_out_{j}")
 
-# Load bounds based on updated demands and vehicle capacity
-for i in customers[1:]:
-    model.addConstr(u[i] >= updated_demand[i], name=f"minload_{i}")
-    model.addConstr(u[i] <= vehicle_capacity, name=f"maxload_{i}")
+    # Number of vehicles leaving and returning to the depot equals vehicle count
+    model.addConstr(quicksum(x[0, j] for j in customers if j != 0) == vehicle_count, name="depot_departure")
+    model.addConstr(quicksum(x[i, 0] for i in customers if i != 0) == vehicle_count, name="depot_return")
 
-# Optimize the model
-model.optimize()
+    # Subtour elimination and capacity constraints using updated demands
+    for i in customers[1:]:
+        for j in customers[1:]:
+            if i != j:
+                model.addConstr(
+                    u[i] - u[j] + vehicle_capacity * x[i, j] <= vehicle_capacity - updated_demand[j],
+                    name=f"subtour_{i}_{j}"
+                )
 
-m = model
+    # Load bounds based on updated demands and vehicle capacity
+    for i in customers[1:]:
+        model.addConstr(u[i] >= updated_demand[i], name=f"minload_{i}")
+        model.addConstr(u[i] <= vehicle_capacity, name=f"maxload_{i}")
+
+    # Optimize the model
+    model.optimize()
+
+    # Modeli global değişken olarak sakla
+    global m
+    m = model
+
+    # Sonucu döndür
+    if model.status == GRB.OPTIMAL:
+        return model.ObjVal
+    else:
+        return None
