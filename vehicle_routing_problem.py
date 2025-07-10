@@ -34,11 +34,12 @@ distance = {
 
 def optimize_with_demand(demand_changes: dict):
     """
-    demand_changes: {customer_id: multiplier} formatında
-    Örnek: {2: 1.40, 6: 0.35} müşteri 2 talebi %40 artar, müşteri 6 talebi %65 azalır.
+    demand_changes: dictionary with {customer_id: multiplier} format
+    Example: {2: 1.40, 6: 0.35} means customer 2 demand increases by 40%,
+    customer 6 demand decreases by 65%.
     """
 
-    # Talebi güncelle (base_demand üzerinden)
+    # Update demand based on base_demand
     updated_demand = base_demand.copy()
     for cust, mult in demand_changes.items():
         updated_demand[cust] = base_demand[cust] * mult
