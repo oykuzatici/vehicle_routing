@@ -65,6 +65,7 @@ for i in customers[1:]:
 
 # Optimize model
 model.optimize()
+m=model
 
 # Output results
 if model.status == GRB.OPTIMAL:
