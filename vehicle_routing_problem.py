@@ -80,11 +80,11 @@ def optimize_with_demand(demand_changes: dict):
     # Optimize the model
     model.optimize()
 
-    # Modeli global değişken olarak sakla
+    # Save the model as a global variable
     global m
     m = model
 
-    # Sonucu döndür
+    # Return the result
     if model.status == GRB.OPTIMAL:
         return model.ObjVal
     else:
