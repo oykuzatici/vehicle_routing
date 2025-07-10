@@ -9,6 +9,9 @@ Original file is located at
 
 # OPTIGUIDE DATA CODE GOES HERE
 
+from gurobipy import Model, GRB, quicksum
+
+
 # Define customers and demands
 customers = [0, 1, 2, 3, 4, 5, 6]
 demand = {
