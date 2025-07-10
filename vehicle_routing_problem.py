@@ -11,11 +11,11 @@ Original file is located at
 
 from gurobipy import Model, GRB, quicksum
 
-customers = [0, 1, 2, 3, 4, 5, 6]
 
-# Base demand values
-base_demand = {
-    0: 0,
+# Define customers and demands
+customers = [0, 1, 2, 3, 4, 5, 6]
+demand = {
+    0: 0,    # depot
     1: 10,
     2: 15,
     3: 20,
@@ -27,66 +27,54 @@ base_demand = {
 vehicle_count = 4
 vehicle_capacity = 60
 
+# Distance matrix
 distance = {
     (i, j): abs(i - j) * 10 + 5
     for i in customers for j in customers if i != j
 }
 
-def optimize_with_demand(demand_changes: dict):
-    """
-    demand_changes: dictionary with {customer_id: multiplier} format
-    Example: {2: 1.40, 6: 0.35} means customer 2 demand increases by 40%,
-    customer 6 demand decreases by 65%.
-    """
+# OPTIGUIDE CONSTRAINT CODE GOES HERE
 
-    # Update demand based on base_demand
-    updated_demand = base_demand.copy()
-    for cust, mult in demand_changes.items():
-        updated_demand[cust] = base_demand[cust] * mult
+# Create model
+model = Model("CVRP")
 
-    # OPTIGUIDE CONSTRAINT CODE GOES HERE
+# Decision variables for edges and load
+x = model.addVars(distance.keys(), vtype=GRB.BINARY, name="x")
+u = model.addVars(customers, vtype=GRB.CONTINUOUS, lb=0, name="u")
 
-    # Initialize the model anew to ensure consistency with updated demands
-    model = Model("CVRP")
+# Objective: minimize total distance
+model.setObjective(quicksum(distance[i, j] * x[i, j] for i, j in distance), GRB.MINIMIZE)
 
-    x = model.addVars(distance.keys(), vtype=GRB.BINARY, name="x")
-    u = model.addVars(customers, vtype=GRB.CONTINUOUS, lb=0, name="u")
+# Each customer is visited exactly once
+for j in customers[1:]:
+    model.addConstr(quicksum(x[i, j] for i in customers if i != j) == 1, name=f"visit_in_{j}")
+    model.addConstr(quicksum(x[j, k] for k in customers if k != j) == 1, name=f"visit_out_{j}")
 
-    # Set objective function to minimize total travel distance
-    model.setObjective(quicksum(distance[i, j] * x[i, j] for i, j in distance), GRB.MINIMIZE)
+# Number of vehicles departing and returning from depot
+model.addConstr(quicksum(x[0, j] for j in customers if j != 0) == vehicle_count, name="depot_departure")
+model.addConstr(quicksum(x[i, 0] for i in customers if i != 0) == vehicle_count, name="depot_return")
 
-    # Each customer must be visited exactly once (inbound and outbound)
+# Subtour elimination (MTZ constraints)
+for i in customers[1:]:
     for j in customers[1:]:
-        model.addConstr(quicksum(x[i, j] for i in customers if i != j) == 1, name=f"visit_in_{j}")
-        model.addConstr(quicksum(x[j, k] for k in customers if k != j) == 1, name=f"visit_out_{j}")
+        if i != j:
+            model.addConstr(u[i] - u[j] + vehicle_capacity * x[i, j] <= vehicle_capacity - demand[j],
+                            name=f"subtour_{i}_{j}")
 
-    # Number of vehicles leaving and returning to the depot equals vehicle count
-    model.addConstr(quicksum(x[0, j] for j in customers if j != 0) == vehicle_count, name="depot_departure")
-    model.addConstr(quicksum(x[i, 0] for i in customers if i != 0) == vehicle_count, name="depot_return")
+# Load limits
+for i in customers[1:]:
+    model.addConstr(u[i] >= demand[i], name=f"minload_{i}")
+    model.addConstr(u[i] <= vehicle_capacity, name=f"maxload_{i}")
 
-    # Subtour elimination and capacity constraints using updated demands
-    for i in customers[1:]:
-        for j in customers[1:]:
-            if i != j:
-                model.addConstr(
-                    u[i] - u[j] + vehicle_capacity * x[i, j] <= vehicle_capacity - updated_demand[j],
-                    name=f"subtour_{i}_{j}"
-                )
+# Optimize model
+model.optimize()
+m=model
 
-    # Load bounds based on updated demands and vehicle capacity
-    for i in customers[1:]:
-        model.addConstr(u[i] >= updated_demand[i], name=f"minload_{i}")
-        model.addConstr(u[i] <= vehicle_capacity, name=f"maxload_{i}")
-
-    # Optimize the model
-    model.optimize()
-
-    # Save the model as a global variable
-    global m
-    m = model
-
-    # Return the result
-    if model.status == GRB.OPTIMAL:
-        return model.ObjVal
-    else:
-        return None
+# Output results
+if model.status == GRB.OPTIMAL:
+    print(f"✅ Optimal toplam mesafe: {model.ObjVal}")
+    for var in model.getVars():
+        if var.X > 0.5 and "x" in var.VarName:
+            print(f"{var.VarName} = 1")
+else:
+    print("❌ Uygun çözüm bulunamadı.")
