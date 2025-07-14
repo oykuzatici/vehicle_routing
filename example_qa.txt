@@ -1,0 +1,33 @@
+Question: What is the minimum route if customer 1's demand increases by 10%?
+Answer Code:
+```python
+demand[1] *= 1.10
+model.optimize()
+print(f"Minimum total distance: {model.ObjVal}")
+```
+----------
+Question: What is the minimum route if customer 2's demand increases by 30% and customer 6's demand decreases by 60%?
+Answer Code:
+```python
+demand[2] *= 1.30
+demand[6] *= 0.40
+model.optimize()
+print(f"Minimum total distance: {model.ObjVal}")
+```
+----------
+Question: What happens to the minimum route if the number of vehicles is increased to 5?
+Answer Code:
+```python
+vehicle_count = 5
+model.optimize()
+print(f"Minimum total distance: {model.ObjVal}")
+```
+----------
+Question: What is the minimum route if the vehicle capacity is reduced to 50?
+Answer Code:
+```python
+vehicle_capacity = 50
+model.optimize()
+print(f"Minimum total distance: {model.ObjVal}")
+```
+----------
