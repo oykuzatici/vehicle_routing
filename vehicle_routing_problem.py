@@ -7,74 +7,82 @@ Original file is located at
     https://colab.research.google.com/drive/1iRuUvV5lKD4zWniPBCMpfmii9CelQi_i
 """
 
-import time
 from gurobipy import Model, GRB, quicksum
+import time
 
 # OPTIGUIDE DATA CODE GOES HERE
-def solve_model():
-    customers = [0, 1, 2, 3, 4, 5, 6]
-    demand = {
-        0: 0,
-        1: 10,
-        2: 15,
-        3: int(20 * 1.58),  # Demand for customer 3 increased by 58%
-        4: 25,
-        5: 30,
-        6: 35
-    }
-    vehicle_count = 4
-    vehicle_capacity = 60
 
-    distance_data = [
-        [0, 8, 12, 20, 15, 30, 25],
-        [8, 0, 5, 18, 9, 22, 11],
-        [12, 5, 0, 10, 7, 20, 13],
-        [20, 18, 10, 0, 5, 14, 10],
-        [15, 9, 7, 5, 0, 10, 8],
-        [30, 22, 20, 14, 10, 0, 5],
-        [25, 11, 13, 10, 8, 5, 0],
-    ]
-    distance = {(i, j): distance_data[i][j] for i in customers for j in customers if i != j}
+customers = [0, 1, 2, 3, 4, 5, 6]
+demand = {
+    0: 0,
+    1: 10,
+    2: 15,
+    3: int(20 * 1.58),  # Demand for customer 3 increased by 58%
+    4: 25,
+    5: 30,
+    6: 35
+}
 
-    model = Model("CVRP")
-    x = model.addVars(distance.keys(), vtype=GRB.BINARY, name="x")
-    u = model.addVars(customers, vtype=GRB.CONTINUOUS, lb=0, name="u")
+vehicle_count = 4
+vehicle_capacity = 60
 
-    # OPTIGUIDE CONSTRAINT CODE GOES HERE
-    model.setObjective(quicksum(distance[i, j] * x[i, j] for i, j in distance), GRB.MINIMIZE)
+distance_data = [
+    [0, 8, 12, 20, 15, 30, 25],
+    [8, 0, 5, 18, 9, 22, 11],
+    [12, 5, 0, 10, 7, 20, 13],
+    [20, 18, 10, 0, 5, 14, 10],
+    [15, 9, 7, 5, 0, 10, 8],
+    [30, 22, 20, 14, 10, 0, 5],
+    [25, 11, 13, 10, 8, 5, 0],
+]
 
+distance = {(i, j): distance_data[i][j] for i in customers for j in customers if i != j}
+
+# Create model
+model = Model("CVRP")
+
+# Decision variables
+x = model.addVars(distance.keys(), vtype=GRB.BINARY, name="x")
+u = model.addVars(customers, vtype=GRB.CONTINUOUS, lb=0, name="u")
+
+# OPTIGUIDE CONSTRAINT CODE GOES HERE
+
+# Objective: minimize total distance
+model.setObjective(quicksum(distance[i, j] * x[i, j] for i, j in distance), GRB.MINIMIZE)
+
+# Each customer visited exactly once
+for j in customers[1:]:
+    model.addConstr(quicksum(x[i, j] for i in customers if i != j) == 1, name=f"visit_in_{j}")
+    model.addConstr(quicksum(x[j, k] for k in customers if k != j) == 1, name=f"visit_out_{j}")
+
+# Number of vehicles leaving and returning to depot
+model.addConstr(quicksum(x[0, j] for j in customers if j != 0) == vehicle_count, name="depot_departure")
+model.addConstr(quicksum(x[i, 0] for i in customers if i != 0) == vehicle_count, name="depot_return")
+
+# Subtour elimination and capacity constraints
+for i in customers[1:]:
     for j in customers[1:]:
-        model.addConstr(quicksum(x[i, j] for i in customers if i != j) == 1, name=f"visit_in_{j}")
-        model.addConstr(quicksum(x[j, k] for k in customers if k != j) == 1, name=f"visit_out_{j}")
+        if i != j:
+            model.addConstr(
+                u[i] - u[j] + vehicle_capacity * x[i, j] <= vehicle_capacity - demand[j],
+                name=f"subtour_{i}_{j}"
+            )
 
-    model.addConstr(quicksum(x[0, j] for j in customers if j != 0) == vehicle_count, name="depot_departure")
-    model.addConstr(quicksum(x[i, 0] for i in customers if i != 0) == vehicle_count, name="depot_return")
+# Load bounds per customer
+for i in customers[1:]:
+    model.addConstr(u[i] >= demand[i], name=f"minload_{i}")
+    model.addConstr(u[i] <= vehicle_capacity, name=f"maxload_{i}")
 
-    for i in customers[1:]:
-        for j in customers[1:]:
-            if i != j:
-                model.addConstr(
-                    u[i] - u[j] + vehicle_capacity * x[i, j] <= vehicle_capacity - demand[j],
-                    name=f"subtour_{i}_{j}"
-                )
+# Optimize model
+model.optimize()
+m = model  # Alias for OptiGuide
 
-    for i in customers[1:]:
-        model.addConstr(u[i] >= demand[i], name=f"minload_{i}")
-        model.addConstr(u[i] <= vehicle_capacity, name=f"maxload_{i}")
+# Solve
+m.update()
+model.optimize()
 
-    # Optimize model
-    model.optimize()
-    global m
-    m = model
-
-    # OPTIGUIDE CONSTRAINT CODE GOES HERE
-
-    # Solve
-    m.update()
-    model.optimize()
-
-    print(time.ctime())
-    if m.status == GRB.OPTIMAL:
-        print(f'Optimal cost: {m.objVal}')
-    else:
-        print("Not solved to optimality. Optimization status:", m.status)
+print(time.ctime())
+if m.status == GRB.OPTIMAL:
+    print(f"Optimal cost: {m.objVal}")
+else:
+    print("Not solved to optimality. Optimization status:", m.status)
