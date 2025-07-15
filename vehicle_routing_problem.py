@@ -27,9 +27,21 @@ demand = {
 vehicle_count = 4
 vehicle_capacity = 60
 
-# Distance matrix
+# Distance matrix (updated according to the problem)
+distance_data = [
+    #  0   1   2   3   4   5   6
+    [  0,  4,  6,  9,  7,  3,  8],  # 0
+    [  4,  0,  5,  6,  4,  7,  3],  # 1
+    [  6,  5,  0,  4,  6,  8,  5],  # 2
+    [  9,  6,  4,  0,  3,  5,  4],  # 3
+    [  7,  4,  6,  3,  0,  4,  6],  # 4
+    [  3,  7,  8,  5,  4,  0,  7],  # 5
+    [  8,  3,  5,  4,  6,  7,  0],  # 6
+]
+
+# Convert matrix to dictionary form
 distance = {
-    (i, j): abs(i - j) * 10 + 5
+    (i, j): distance_data[i][j]
     for i in customers for j in customers if i != j
 }
 
