@@ -9,7 +9,7 @@ Original file is located at
 
 from gurobipy import Model, GRB
 
-# --- OPTIGUIDE DATA CODE GOES HERE ---
+# OPTIGUIDE DATA CODE GOES HERE
 
 # Customer demands (0 is depot)
 demand = {
@@ -52,7 +52,7 @@ x = model.addVars(distance.keys(), vtype=GRB.BINARY, name="x")
 # Load variables for MTZ subtour elimination
 u = model.addVars(customers, lb=0, ub=vehicle_capacity, vtype=GRB.CONTINUOUS, name="load")
 
-# --- OPTIGUIDE CONSTRAINT CODE GOES HERE ---
+# OPTIGUIDE CONSTRAINT CODE GOES HERE
 
 # Each customer visited exactly once
 for j in customers[1:]:
