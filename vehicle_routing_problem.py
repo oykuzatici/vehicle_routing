@@ -7,28 +7,11 @@ Original file is located at
     https://colab.research.google.com/drive/1iRuUvV5lKD4zWniPBCMpfmii9CelQi_i
 """
 
-from gurobipy import Model, GRB, quicksum
-import time
+from gurobipy import Model, GRB
 
-# OPTIGUIDE DATA CODE GOES HERE
+# --- OPTIGUIDE DATA CODE GOES HERE ---
 
-# Data
-customers = [0,1,2,3,4,5,6]
-vehicle_count = 4
-vehicle_capacity = 60
-
-distance_data = [
-    [0, 8, 12, 20, 15, 30, 25],
-    [8, 0, 5, 18, 9, 22, 11],
-    [12, 5, 0, 10, 7, 20, 13],
-    [20, 18, 10, 0, 5, 14, 10],
-    [15, 9, 7, 5, 0, 10, 8],
-    [30, 22, 20, 14, 10, 0, 5],
-    [25, 11, 13, 10, 8, 5, 0],
-]
-
-distance = {(i,j): distance_data[i][j] for i in customers for j in customers if i != j}
-
+# Customer demands (0 is depot)
 demand = {
     0: 0,
     1: 10,
@@ -39,49 +22,77 @@ demand = {
     6: 35
 }
 
-# Model creation
-model = Model("CVRP")
+# Vehicle parameters
+vehicle_count = 4
+vehicle_capacity = 60
 
-# Decision variables
+# List of all nodes
+customers = list(demand.keys())
+
+# Distance matrix (example symmetric distances)
+distance_data = [
+    [0, 8, 12, 20, 15, 30, 25],
+    [8, 0, 5, 18, 9, 22, 11],
+    [12, 5, 0, 10, 7, 20, 13],
+    [20, 18, 10, 0, 5, 14, 10],
+    [15, 9, 7, 5, 0, 10, 8],
+    [30, 22, 20, 14, 10, 0, 5],
+    [25, 11, 13, 10, 8, 5, 0],
+]
+
+# Distance dictionary (only i != j)
+distance = {(i, j): distance_data[i][j] for i in customers for j in customers if i != j}
+
+# Create model
+model = Model("CVRP_Custom")
+
+# Decision variables: x[i,j] = 1 if edge (i,j) is used
 x = model.addVars(distance.keys(), vtype=GRB.BINARY, name="x")
-u = model.addVars(customers, vtype=GRB.CONTINUOUS, lb=0, name="u")
 
-# OPTIGUIDE CONSTRAINT CODE GOES HERE
+# Load variables for MTZ subtour elimination
+u = model.addVars(customers, lb=0, ub=vehicle_capacity, vtype=GRB.CONTINUOUS, name="load")
 
-# Objective function
-model.setObjective(quicksum(distance[i,j] * x[i,j] for i,j in distance), GRB.MINIMIZE)
+# --- OPTIGUIDE CONSTRAINT CODE GOES HERE ---
 
-# Constraints
+# Each customer visited exactly once
 for j in customers[1:]:
-    model.addConstr(quicksum(x[i,j] for i in customers if i != j) == 1, name=f"visit_in_{j}")
-    model.addConstr(quicksum(x[j,k] for k in customers if k != j) == 1, name=f"visit_out_{j}")
+    model.addConstr(sum(x[i, j] for i in customers if i != j) == 1, name=f"visit_in_{j}")
+    model.addConstr(sum(x[j, k] for k in customers if k != j) == 1, name=f"visit_out_{j}")
 
-model.addConstr(quicksum(x[0,j] for j in customers if j != 0) == vehicle_count, name="depot_departure")
-model.addConstr(quicksum(x[i,0] for i in customers if i != 0) == vehicle_count, name="depot_return")
+# Number of vehicles leaving and returning to depot equals vehicle_count
+model.addConstr(sum(x[0, j] for j in customers if j != 0) == vehicle_count, name="depot_departure")
+model.addConstr(sum(x[i, 0] for i in customers if i != 0) == vehicle_count, name="depot_return")
 
+# MTZ subtour elimination constraints
 for i in customers[1:]:
     for j in customers[1:]:
         if i != j:
             model.addConstr(
-                u[i] - u[j] + vehicle_capacity * x[i,j] <= vehicle_capacity - demand[j],
+                u[i] - u[j] + vehicle_capacity * x[i, j] <= vehicle_capacity - demand[j],
                 name=f"subtour_{i}_{j}"
             )
 
+# Load limits (demand <= load <= vehicle capacity)
 for i in customers[1:]:
     model.addConstr(u[i] >= demand[i], name=f"minload_{i}")
     model.addConstr(u[i] <= vehicle_capacity, name=f"maxload_{i}")
 
-# Solve the model
-model.optimize()
-m = model  # OPTIGUIDE için alias
+# Objective: minimize total travel distance
+model.setObjective(
+    sum(distance[i, j] * x[i, j] for i, j in distance),
+    GRB.MINIMIZE
+)
 
-# Display results
+# --- Solve the model ---
+model.optimize()
+m = model
+
+# Display results if optimal solution is found
 if model.status == GRB.OPTIMAL:
-    print(f"✅ Optimal solution found. Total distance: {model.ObjVal:.2f}")
+    print(f"✅ Optimal solution found. Total cost: {model.ObjVal:.2f}")
     for v in model.getVars():
         if v.X > 0:
             print(f"{v.VarName}: {v.X}")
 else:
     print("❌ No feasible solution found.")
 
-print(time.ctime())
