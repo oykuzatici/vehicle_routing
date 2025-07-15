@@ -7,14 +7,11 @@ Original file is located at
     https://colab.research.google.com/drive/1iRuUvV5lKD4zWniPBCMpfmii9CelQi_i
 """
 
+import time
 from gurobipy import Model, GRB, quicksum
 
 # OPTIGUIDE DATA CODE GOES HERE
-m = None  # Global model reference for OptiGuide
-
 def solve_model():
-    global m  # Required for OptiGuide to recognize the model
-
     customers = [0, 1, 2, 3, 4, 5, 6]
     demand = {
         0: 0,
@@ -44,29 +41,14 @@ def solve_model():
     u = model.addVars(customers, vtype=GRB.CONTINUOUS, lb=0, name="u")
 
     # OPTIGUIDE CONSTRAINT CODE GOES HERE
-    model.setObjective(
-        quicksum(distance[i, j] * x[i, j] for i, j in distance),
-        GRB.MINIMIZE
-    )
+    model.setObjective(quicksum(distance[i, j] * x[i, j] for i, j in distance), GRB.MINIMIZE)
 
     for j in customers[1:]:
-        model.addConstr(
-            quicksum(x[i, j] for i in customers if i != j) == 1,
-            name=f"visit_in_{j}"
-        )
-        model.addConstr(
-            quicksum(x[j, k] for k in customers if k != j) == 1,
-            name=f"visit_out_{j}"
-        )
+        model.addConstr(quicksum(x[i, j] for i in customers if i != j) == 1, name=f"visit_in_{j}")
+        model.addConstr(quicksum(x[j, k] for k in customers if k != j) == 1, name=f"visit_out_{j}")
 
-    model.addConstr(
-        quicksum(x[0, j] for j in customers if j != 0) == vehicle_count,
-        name="depot_departure"
-    )
-    model.addConstr(
-        quicksum(x[i, 0] for i in customers if i != 0) == vehicle_count,
-        name="depot_return"
-    )
+    model.addConstr(quicksum(x[0, j] for j in customers if j != 0) == vehicle_count, name="depot_departure")
+    model.addConstr(quicksum(x[i, 0] for i in customers if i != 0) == vehicle_count, name="depot_return")
 
     for i in customers[1:]:
         for j in customers[1:]:
@@ -80,14 +62,19 @@ def solve_model():
         model.addConstr(u[i] >= demand[i], name=f"minload_{i}")
         model.addConstr(u[i] <= vehicle_capacity, name=f"maxload_{i}")
 
+    # Optimize model
     model.optimize()
+    global m
+    m = model
 
-    if model.status == GRB.OPTIMAL:
-        print(f"Total distance: {model.ObjVal}")
-    else:
-        print("No feasible solution found.")
+    # OPTIGUIDE CONSTRAINT CODE GOES HERE
 
-    # OptiGuide-compatible model reference
     # Solve
     m.update()
     model.optimize()
+
+    print(time.ctime())
+    if m.status == GRB.OPTIMAL:
+        print(f'Optimal cost: {m.objVal}')
+    else:
+        print("Not solved to optimality. Optimization status:", m.status)
