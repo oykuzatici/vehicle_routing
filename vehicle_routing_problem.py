@@ -39,14 +39,16 @@ demand = {
     6: 35
 }
 
-# Create model
+# Model creation
 model = Model("CVRP")
 
 # Decision variables
 x = model.addVars(distance.keys(), vtype=GRB.BINARY, name="x")
 u = model.addVars(customers, vtype=GRB.CONTINUOUS, lb=0, name="u")
 
-# Objective function: minimize total distance
+# OPTIGUIDE CONSTRAINT CODE GOES HERE
+
+# Objective function
 model.setObjective(quicksum(distance[i,j] * x[i,j] for i,j in distance), GRB.MINIMIZE)
 
 # Constraints
@@ -81,3 +83,51 @@ if model.status == GRB.OPTIMAL:
             print(f"{v.VarName}: {v.X}")
 else:
     print("❌ No feasible solution found.")
+
+print(time.ctime())
+
+# ------------------------------------------------------------
+
+# Talep %58 artırıldığında
+
+demand[3] = int(demand[3] * 1.58)
+
+# Modeli tekrar oluştur
+
+model = Model("CVRP")
+
+x = model.addVars(distance.keys(), vtype=GRB.BINARY, name="x")
+u = model.addVars(customers, vtype=GRB.CONTINUOUS, lb=0, name="u")
+
+# OPTIGUIDE CONSTRAINT CODE GOES HERE
+
+model.setObjective(quicksum(distance[i,j] * x[i,j] for i,j in distance), GRB.MINIMIZE)
+
+for j in customers[1:]:
+    model.addConstr(quicksum(x[i,j] for i in customers if i != j) == 1, name=f"visit_in_{j}")
+    model.addConstr(quicksum(x[j,k] for k in customers if k != j) == 1, name=f"visit_out_{j}")
+
+model.addConstr(quicksum(x[0,j] for j in customers if j != 0) == vehicle_count, name="depot_departure")
+model.addConstr(quicksum(x[i,0] for i in customers if i != 0) == vehicle_count, name="depot_return")
+
+for i in customers[1:]:
+    for j in customers[1:]:
+        if i != j:
+            model.addConstr(
+                u[i] - u[j] + vehicle_capacity * x[i,j] <= vehicle_capacity - demand[j],
+                name=f"subtour_{i}_{j}"
+            )
+
+for i in customers[1:]:
+    model.addConstr(u[i] >= demand[i], name=f"minload_{i}")
+    model.addConstr(u[i] <= vehicle_capacity, name=f"maxload_{i}")
+
+model.optimize()
+m = model
+
+if model.status == GRB.OPTIMAL:
+    print(f"✅ After demand increase, total distance: {model.ObjVal:.2f}")
+else:
+    print("❌ No feasible solution after demand increase.")
+
+print(time.ctime())
