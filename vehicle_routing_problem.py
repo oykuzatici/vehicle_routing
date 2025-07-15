@@ -7,15 +7,14 @@ Original file is located at
     https://colab.research.google.com/drive/1iRuUvV5lKD4zWniPBCMpfmii9CelQi_i
 """
 
-def solve_cvrp_with_updated_demand(update_customer_id=None, multiplier=1.0):
-    from gurobipy import Model, GRB, quicksum
+from gurobipy import Model, GRB, quicksum
 
-    # OPTIGUIDE DATA CODE GOES HERE
+# OPTIGUIDE DATA CODE GOES HERE
+def solve_model():
     customers = [0, 1, 2, 3, 4, 5, 6]
-    demand = {0: 0, 1: 10, 2: 15, 3: 20, 4: 25, 5: 30, 6: 35}
-    if update_customer_id is not None:
-        demand[update_customer_id] = int(demand[update_customer_id] * multiplier)
-
+    demand = {
+        0: 0, 1: 10, 2: 15, 3: int(20 * 1.58), 4: 25, 5: 30, 6: 35
+    }
     vehicle_count = 4
     vehicle_capacity = 60
 
@@ -57,4 +56,8 @@ def solve_cvrp_with_updated_demand(update_customer_id=None, multiplier=1.0):
         model.addConstr(u[i] <= vehicle_capacity, name=f"maxload_{i}")
 
     model.optimize()
-    return model.ObjVal
+    print(f"Total distance: {model.ObjVal}")
+
+    # OptiGuide-specific alias
+    global m
+    m = model
