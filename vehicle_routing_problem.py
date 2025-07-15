@@ -7,15 +7,14 @@ Original file is located at
     https://colab.research.google.com/drive/1iRuUvV5lKD4zWniPBCMpfmii9CelQi_i
 """
 
-# OPTIGUIDE DATA CODE GOES HERE
-
 from gurobipy import Model, GRB, quicksum
 
+# OPTIGUIDE DATA CODE GOES HERE
 
-# Define customers and demands
+# Global sets and parameters
 customers = [0, 1, 2, 3, 4, 5, 6]
 demand = {
-    0: 0,    # depot
+    0: 0,
     1: 10,
     2: 15,
     3: 20,
@@ -23,11 +22,10 @@ demand = {
     5: 30,
     6: 35
 }
-
 vehicle_count = 4
 vehicle_capacity = 60
 
-# Distance matrix (updated according to the problem)
+# Distance matrix (asymmetric/dense matrix)
 distance_data = [
     [0, 8, 12, 20, 15, 30, 25],
     [8, 0, 5, 18, 9, 22, 11],
@@ -38,55 +36,77 @@ distance_data = [
     [25, 11, 13, 10, 8, 5, 0],
 ]
 
-
-# Convert matrix to dictionary form
+# Convert distance matrix to dictionary form
 distance = {
     (i, j): distance_data[i][j]
     for i in customers for j in customers if i != j
 }
 
-# OPTIGUIDE CONSTRAINT CODE GOES HERE
+# Function to build and solve the model
+def build_model():
+    global model, x, u  # Declare global for OptiGuide access
 
-# Create model
-model = Model("CVRP")
+    model = Model("CVRP")
 
-# Decision variables for edges and load
-x = model.addVars(distance.keys(), vtype=GRB.BINARY, name="x")
-u = model.addVars(customers, vtype=GRB.CONTINUOUS, lb=0, name="u")
+    # OPTIGUIDE CONSTRAINT CODE GOES HERE
 
-# Objective: minimize total distance
-model.setObjective(quicksum(distance[i, j] * x[i, j] for i, j in distance), GRB.MINIMIZE)
+    # Decision variables
+    x = model.addVars(distance.keys(), vtype=GRB.BINARY, name="x")
+    u = model.addVars(customers, vtype=GRB.CONTINUOUS, lb=0, name="u")
 
-# Each customer is visited exactly once
-for j in customers[1:]:
-    model.addConstr(quicksum(x[i, j] for i in customers if i != j) == 1, name=f"visit_in_{j}")
-    model.addConstr(quicksum(x[j, k] for k in customers if k != j) == 1, name=f"visit_out_{j}")
+    # Objective function: minimize total travel distance
+    model.setObjective(quicksum(distance[i, j] * x[i, j] for i, j in distance), GRB.MINIMIZE)
 
-# Number of vehicles departing and returning from depot
-model.addConstr(quicksum(x[0, j] for j in customers if j != 0) == vehicle_count, name="depot_departure")
-model.addConstr(quicksum(x[i, 0] for i in customers if i != 0) == vehicle_count, name="depot_return")
-
-# Subtour elimination (MTZ constraints)
-for i in customers[1:]:
+    # Each customer must be visited exactly once
     for j in customers[1:]:
-        if i != j:
-            model.addConstr(u[i] - u[j] + vehicle_capacity * x[i, j] <= vehicle_capacity - demand[j],
-                            name=f"subtour_{i}_{j}")
+        model.addConstr(quicksum(x[i, j] for i in customers if i != j) == 1, name=f"visit_in_{j}")
+        model.addConstr(quicksum(x[j, k] for k in customers if k != j) == 1, name=f"visit_out_{j}")
 
-# Load limits
-for i in customers[1:]:
-    model.addConstr(u[i] >= demand[i], name=f"minload_{i}")
-    model.addConstr(u[i] <= vehicle_capacity, name=f"maxload_{i}")
+    # Vehicles must depart from and return to the depot
+    model.addConstr(quicksum(x[0, j] for j in customers if j != 0) == vehicle_count, name="depot_departure")
+    model.addConstr(quicksum(x[i, 0] for i in customers if i != 0) == vehicle_count, name="depot_return")
 
-# Optimize model
-model.optimize()
-m=model
+    # Subtour elimination (Miller–Tucker–Zemlin formulation)
+    for i in customers[1:]:
+        for j in customers[1:]:
+            if i != j:
+                model.addConstr(
+                    u[i] - u[j] + vehicle_capacity * x[i, j] <= vehicle_capacity - demand[j],
+                    name=f"subtour_{i}_{j}"
+                )
 
-# Output results
+    # Load constraints
+    for i in customers[1:]:
+        model.addConstr(u[i] >= demand[i], name=f"minload_{i}")
+        model.addConstr(u[i] <= vehicle_capacity, name=f"maxload_{i}")
+
+    # Solve the model
+    model.optimize()
+
+# Function to update demand and re-optimize
+def update_demand(customer_id, new_demand_value):
+    """
+    Update demand for a customer and re-optimize the model.
+    """
+    demand[customer_id] = new_demand_value
+    constr = model.getConstrByName(f"minload_{customer_id}")
+    if constr:
+        constr.RHS = new_demand_value
+    else:
+        print(f"Constraint not found: minload_{customer_id}")
+    model.optimize()
+    print(f"🟢 Demand updated: Customer {customer_id} = {new_demand_value}")
+    if model.status == GRB.OPTIMAL:
+        print(f"✅ New optimal total distance: {model.ObjVal}")
+    else:
+        print("❌ No feasible solution found.")
+
+# Build initial model
+build_model()
+
+# Optional: Print initial solution
 if model.status == GRB.OPTIMAL:
-    print(f"✅ Optimal toplam mesafe: {model.ObjVal}")
+    print(f"🔍 Initial optimal total distance: {model.ObjVal}")
     for var in model.getVars():
         if var.X > 0.5 and "x" in var.VarName:
             print(f"{var.VarName} = 1")
-else:
-    print("❌ Uygun çözüm bulunamadı.")
