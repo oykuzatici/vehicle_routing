@@ -88,4 +88,6 @@ def solve_model():
         print("No feasible solution found.")
 
     # OptiGuide-compatible model reference
-    m = model
+    # Solve
+    m.update()
+    model.optimize()
