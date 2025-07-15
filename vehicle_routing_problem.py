@@ -7,12 +7,15 @@ Original file is located at
     https://colab.research.google.com/drive/1iRuUvV5lKD4zWniPBCMpfmii9CelQi_i
 """
 
-from gurobipy import Model, GRB, quicksum
+def solve_cvrp_with_updated_demand(update_customer_id=None, multiplier=1.0):
+    from gurobipy import Model, GRB, quicksum
 
-# OPTIGUIDE DATA CODE GOES HERE
-
-def build_and_solve_model(demand):
+    # OPTIGUIDE DATA CODE GOES HERE
     customers = [0, 1, 2, 3, 4, 5, 6]
+    demand = {0: 0, 1: 10, 2: 15, 3: 20, 4: 25, 5: 30, 6: 35}
+    if update_customer_id is not None:
+        demand[update_customer_id] = int(demand[update_customer_id] * multiplier)
+
     vehicle_count = 4
     vehicle_capacity = 60
 
@@ -25,14 +28,13 @@ def build_and_solve_model(demand):
         [30, 22, 20, 14, 10, 0, 5],
         [25, 11, 13, 10, 8, 5, 0],
     ]
-
     distance = {(i, j): distance_data[i][j] for i in customers for j in customers if i != j}
 
     model = Model("CVRP")
-
     x = model.addVars(distance.keys(), vtype=GRB.BINARY, name="x")
     u = model.addVars(customers, vtype=GRB.CONTINUOUS, lb=0, name="u")
 
+    # OPTIGUIDE CONSTRAINT CODE GOES HERE
     model.setObjective(quicksum(distance[i, j] * x[i, j] for i, j in distance), GRB.MINIMIZE)
 
     for j in customers[1:]:
@@ -55,27 +57,4 @@ def build_and_solve_model(demand):
         model.addConstr(u[i] <= vehicle_capacity, name=f"maxload_{i}")
 
     model.optimize()
-
-    return model
-
-# OPTIGUIDE CONSTRAINT CODE GOES HERE
-
-# Build and solve initial model
-demand_initial = {
-    0: 0, 1: 10, 2: 15, 3: 20, 4: 25, 5: 30, 6: 35
-}
-
-model = build_and_solve_model(demand_initial)
-
-print(f"Initial total distance: {model.ObjVal}")
-
-# Now update demand for customer 3 by 38%
-demand_updated = demand_initial.copy()
-demand_updated[3] = int(demand_updated[3] * 1.38)
-
-# Rebuild and solve model with updated demand
-model_updated = build_and_solve_model(demand_updated)
-
-print(f"Total distance after demand increase for customer 3: {model_updated.ObjVal}")
-
-m = model_updated  # OptiGuide expects 'm' as model reference
+    return model.ObjVal
