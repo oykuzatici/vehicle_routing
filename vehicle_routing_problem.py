@@ -25,7 +25,6 @@ demand = {
 vehicle_count = 4
 vehicle_capacity = 60
 
-# Distance matrix (asymmetric/dense matrix)
 distance_data = [
     [0, 8, 12, 20, 15, 30, 25],
     [8, 0, 5, 18, 9, 22, 11],
@@ -36,37 +35,30 @@ distance_data = [
     [25, 11, 13, 10, 8, 5, 0],
 ]
 
-# Convert distance matrix to dictionary form
 distance = {
     (i, j): distance_data[i][j]
     for i in customers for j in customers if i != j
 }
 
-# Function to build and solve the model
+# OPTIGUIDE CONSTRAINT CODE GOES HERE
+
 def build_model():
-    global model, x, u  # Declare global for OptiGuide access
+    global model, x, u, demand, distance, customers, vehicle_count, vehicle_capacity
 
     model = Model("CVRP")
 
-    # OPTIGUIDE CONSTRAINT CODE GOES HERE
-
-    # Decision variables
     x = model.addVars(distance.keys(), vtype=GRB.BINARY, name="x")
     u = model.addVars(customers, vtype=GRB.CONTINUOUS, lb=0, name="u")
 
-    # Objective function: minimize total travel distance
     model.setObjective(quicksum(distance[i, j] * x[i, j] for i, j in distance), GRB.MINIMIZE)
 
-    # Each customer must be visited exactly once
     for j in customers[1:]:
         model.addConstr(quicksum(x[i, j] for i in customers if i != j) == 1, name=f"visit_in_{j}")
         model.addConstr(quicksum(x[j, k] for k in customers if k != j) == 1, name=f"visit_out_{j}")
 
-    # Vehicles must depart from and return to the depot
     model.addConstr(quicksum(x[0, j] for j in customers if j != 0) == vehicle_count, name="depot_departure")
     model.addConstr(quicksum(x[i, 0] for i in customers if i != 0) == vehicle_count, name="depot_return")
 
-    # Subtour elimination (Miller–Tucker–Zemlin formulation)
     for i in customers[1:]:
         for j in customers[1:]:
             if i != j:
@@ -75,38 +67,25 @@ def build_model():
                     name=f"subtour_{i}_{j}"
                 )
 
-    # Load constraints
     for i in customers[1:]:
         model.addConstr(u[i] >= demand[i], name=f"minload_{i}")
         model.addConstr(u[i] <= vehicle_capacity, name=f"maxload_{i}")
 
-    # Solve the model
     model.optimize()
 
-# Function to update demand and re-optimize
 def update_demand(customer_id, new_demand_value):
-    """
-    Update demand for a customer and re-optimize the model.
-    """
+    global demand, model
     demand[customer_id] = new_demand_value
+
     constr = model.getConstrByName(f"minload_{customer_id}")
     if constr:
         constr.RHS = new_demand_value
     else:
         print(f"Constraint not found: minload_{customer_id}")
+
     model.optimize()
     print(f"🟢 Demand updated: Customer {customer_id} = {new_demand_value}")
     if model.status == GRB.OPTIMAL:
         print(f"✅ New optimal total distance: {model.ObjVal}")
     else:
         print("❌ No feasible solution found.")
-
-# Build initial model
-build_model()
-
-# Optional: Print initial solution
-if model.status == GRB.OPTIMAL:
-    print(f"🔍 Initial optimal total distance: {model.ObjVal}")
-    for var in model.getVars():
-        if var.X > 0.5 and "x" in var.VarName:
-            print(f"{var.VarName} = 1")
