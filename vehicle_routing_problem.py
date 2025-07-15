@@ -17,7 +17,7 @@ demand = {
     0: 0,
     1: 10,
     2: 15,
-    3: int(20 * 1.58),  # Demand for customer 3 increased by 58%
+    3: 20,  # Demand for customer 3 increased by 58%
     4: 25,
     5: 30,
     6: 35
