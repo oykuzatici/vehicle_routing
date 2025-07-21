@@ -11,9 +11,8 @@ from gurobipy import Model, GRB
 import math
 
 def solve_model(demand_override=None):
-    # ----------------------------
+
     # 1. Data
-    # ----------------------------
     demand = {
         0: 0,
         1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1,
@@ -33,9 +32,7 @@ def solve_model(demand_override=None):
     vehicle_capacity = 4
     customers = list(range(11))  # depot + 10 customers
 
-    # ----------------------------
     # 2. Preprocessing
-    # ----------------------------
     def euclidean(a, b):
         ax, ay = coordinates[a]
         bx, by = coordinates[b]
@@ -46,44 +43,44 @@ def solve_model(demand_override=None):
         for i in customers for j in customers if i != j
     }
 
-    # ----------------------------
     # 3. Model
-    # ----------------------------
     model = Model("CVRP_10_Customers")
-    model.setParam("OutputFlag", 0)  # suppress output
+    model.setParam("OutputFlag", 0)  # Gurobi çýktýsýný kapatýr
 
+    # Decision vars
     x = model.addVars(distance.keys(), vtype=GRB.BINARY, name="x")
     u = model.addVars(customers, lb=0, ub=vehicle_capacity, vtype=GRB.CONTINUOUS, name="u")
 
+    # Objective: minimize total travel distance
     model.setObjective(
         sum(distance[i, j] * x[i, j] for i, j in distance), GRB.MINIMIZE
     )
 
-    # Each customer visited once
+    # Constraints:
+    # Each customer visited exactly once (in and out)
     for j in customers[1:]:
-        model.addConstr(sum(x[i, j] for i in customers if i != j) == 1)
-        model.addConstr(sum(x[j, k] for k in customers if k != j) == 1)
+        model.addConstr(sum(x[i, j] for i in customers if i != j) == 1, name=f"visit_in_{j}")
+        model.addConstr(sum(x[j, k] for k in customers if k != j) == 1, name=f"visit_out_{j}")
 
-    # Vehicles depart from and return to depot
-    model.addConstr(sum(x[0, j] for j in customers if j != 0) == vehicle_count)
-    model.addConstr(sum(x[i, 0] for i in customers if i != 0) == vehicle_count)
+    # Vehicle count constraints at depot
+    model.addConstr(sum(x[0, j] for j in customers if j != 0) == vehicle_count, name="depot_departure")
+    model.addConstr(sum(x[i, 0] for i in customers if i != 0) == vehicle_count, name="depot_return")
 
-    # Subtour elimination (MTZ)
+    # Subtour elimination (MTZ constraints)
     for i in customers[1:]:
         for j in customers[1:]:
             if i != j:
                 model.addConstr(
-                    u[i] - u[j] + vehicle_capacity * x[i, j] <= vehicle_capacity - demand[j]
+                    u[i] - u[j] + vehicle_capacity * x[i, j] <= vehicle_capacity - demand[j],
+                    name=f"subtour_{i}_{j}"
                 )
 
-    # Load constraints
+    # Load capacity constraints
     for i in customers[1:]:
-        model.addConstr(u[i] >= demand[i])
-        model.addConstr(u[i] <= vehicle_capacity)
+        model.addConstr(u[i] >= demand[i], name=f"minload_{i}")
+        model.addConstr(u[i] <= vehicle_capacity, name=f"maxload_{i}")
 
-    # ----------------------------
     # 4. Solve
-    # ----------------------------
     model.optimize()
 
     if model.status == GRB.OPTIMAL:
