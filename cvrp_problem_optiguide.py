@@ -91,7 +91,7 @@ if model.status == GRB.OPTIMAL:
 else:
     print("❌ No feasible solution found.")
 
-def solve_vrp_with_demand_change(demand_changes=None, vehicle_capacity=4, vehicle_count=5):
+def solve_model(demand_changes=None, vehicle_capacity=4, vehicle_count=5):
     new_demand = demand_small.copy()
 
     if demand_changes:
