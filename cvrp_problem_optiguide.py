@@ -16,25 +16,22 @@ import math
 demand = {
     0: 0,
     1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1,
-    10: 1, 11: 1, 12: 1, 13: 1, 14: 1, 15: 1, 16: 1, 17: 1, 18: 1, 19: 1,
-    20: 1,  # Selecting 20 customers for this example
+    10: 1,  # Selecting 10 customers for this example
 }
 
 # Coordinates for depot and customers
 coordinates = {
     0: (764, 255), 1: (303, 588), 2: (445, 722), 3: (993, 860), 4: (34, 242),
     5: (900, 18), 6: (290, 21), 7: (395, 576), 8: (505, 589), 9: (838, 557),
-    10: (756, 249), 11: (29, 221), 12: (613, 458), 13: (43, 704), 14: (673, 83),
-    15: (798, 517), 16: (218, 460), 17: (233, 231), 18: (28, 229), 19: (306, 859),
-    20: (514, 953)
+    10: (756, 249),
 }
 
 # Vehicle parameters
 vehicle_count = 5  # Reduced vehicle count due to smaller problem size
 vehicle_capacity = 4
 
-# Selected customers (depot + customers 1 to 20)
-selected_customers = list(range(21))
+# Selected customers (depot + customers 1 to 10)
+selected_customers = list(range(11))
 
 # Subset demand and coordinates for selected customers
 demand_small = {k: demand[k] for k in selected_customers}
@@ -92,4 +89,4 @@ if model.status == GRB.OPTIMAL:
         if v.X > 0.1:
             print(f"{v.VarName}: {v.X}")
 else:
-    print("❌ No feasible solution found.")
+  print("❌ No feasible solution found.")
