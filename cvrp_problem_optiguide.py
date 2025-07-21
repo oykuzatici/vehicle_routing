@@ -10,83 +10,83 @@ Original file is located at
 from gurobipy import Model, GRB
 import math
 
-# --- OPTIGUIDE DATA CODE GOES HERE ---
+def solve_model(demand_override=None):
+    # ----------------------------
+    # 1. Data
+    # ----------------------------
+    demand = {
+        0: 0,
+        1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1,
+        10: 1,
+    }
 
-# Customer demands (0 is depot)
-demand = {
-    0: 0,
-    1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1,
-    10: 1,  # Selecting 10 customers for this example
-}
+    if demand_override:
+        demand.update(demand_override)
 
-# Coordinates for depot and customers
-coordinates = {
-    0: (764, 255), 1: (303, 588), 2: (445, 722), 3: (993, 860), 4: (34, 242),
-    5: (900, 18), 6: (290, 21), 7: (395, 576), 8: (505, 589), 9: (838, 557),
-    10: (756, 249),
-}
+    coordinates = {
+        0: (764, 255), 1: (303, 588), 2: (445, 722), 3: (993, 860), 4: (34, 242),
+        5: (900, 18), 6: (290, 21), 7: (395, 576), 8: (505, 589), 9: (838, 557),
+        10: (756, 249),
+    }
 
-# Vehicle parameters
-vehicle_count = 5  # Reduced vehicle count due to smaller problem size
-vehicle_capacity = 4
+    vehicle_count = 5
+    vehicle_capacity = 4
+    customers = list(range(11))  # depot + 10 customers
 
-# Selected customers (depot + customers 1 to 10)
-selected_customers = list(range(11))
+    # ----------------------------
+    # 2. Preprocessing
+    # ----------------------------
+    def euclidean(a, b):
+        ax, ay = coordinates[a]
+        bx, by = coordinates[b]
+        return round(math.hypot(ax - bx, ay - by))
 
-# Subset demand and coordinates for selected customers
-demand_small = {k: demand[k] for k in selected_customers}
-coordinates_small = {k: coordinates[k] for k in selected_customers}
+    distance = {
+        (i, j): euclidean(i, j)
+        for i in customers for j in customers if i != j
+    }
 
-# Function to calculate Euclidean distance between two points
-def euclidean(a, b):
-    return round(math.hypot(coordinates_small[a][0] - coordinates_small[b][0],
-                            coordinates_small[a][1] - coordinates_small[b][1]))
+    # ----------------------------
+    # 3. Model
+    # ----------------------------
+    model = Model("CVRP_10_Customers")
+    model.setParam("OutputFlag", 0)  # suppress output
 
-# Distance dictionary for all pairs of selected customers (excluding same node pairs)
-distance_small = {(i, j): euclidean(i, j) for i in selected_customers for j in selected_customers if i != j}
+    x = model.addVars(distance.keys(), vtype=GRB.BINARY, name="x")
+    u = model.addVars(customers, lb=0, ub=vehicle_capacity, vtype=GRB.CONTINUOUS, name="u")
 
-# Create the optimization model
-model = Model("CVRP_20customers")
+    model.setObjective(
+        sum(distance[i, j] * x[i, j] for i, j in distance), GRB.MINIMIZE
+    )
 
-# Decision variables:
-# x[i,j] = 1 if vehicle travels from node i to node j, 0 otherwise
-x = model.addVars(distance_small.keys(), vtype=GRB.BINARY, name="x")
+    # Each customer visited once
+    for j in customers[1:]:
+        model.addConstr(sum(x[i, j] for i in customers if i != j) == 1)
+        model.addConstr(sum(x[j, k] for k in customers if k != j) == 1)
 
-# Load variables used for subtour elimination (Miller-Tucker-Zemlin formulation)
-u = model.addVars(selected_customers, lb=0, ub=vehicle_capacity, vtype=GRB.CONTINUOUS, name="load")
+    # Vehicles depart from and return to depot
+    model.addConstr(sum(x[0, j] for j in customers if j != 0) == vehicle_count)
+    model.addConstr(sum(x[i, 0] for i in customers if i != 0) == vehicle_count)
 
-# Each customer must be visited exactly once
-for j in selected_customers[1:]:
-    model.addConstr(sum(x[i, j] for i in selected_customers if i != j) == 1, name=f"visit_in_{j}")
-    model.addConstr(sum(x[j, k] for k in selected_customers if k != j) == 1, name=f"visit_out_{j}")
+    # Subtour elimination (MTZ)
+    for i in customers[1:]:
+        for j in customers[1:]:
+            if i != j:
+                model.addConstr(
+                    u[i] - u[j] + vehicle_capacity * x[i, j] <= vehicle_capacity - demand[j]
+                )
 
-# Number of vehicles leaving and returning to depot must equal vehicle_count
-model.addConstr(sum(x[0, j] for j in selected_customers if j != 0) == vehicle_count, name="depot_departure")
-model.addConstr(sum(x[i, 0] for i in selected_customers if i != 0) == vehicle_count, name="depot_return")
+    # Load constraints
+    for i in customers[1:]:
+        model.addConstr(u[i] >= demand[i])
+        model.addConstr(u[i] <= vehicle_capacity)
 
-# Subtour elimination constraints (Miller-Tucker-Zemlin)
-for i in selected_customers[1:]:
-    for j in selected_customers[1:]:
-        if i != j:
-            model.addConstr(u[i] - u[j] + vehicle_capacity * x[i, j] <= vehicle_capacity - demand_small[j],
-                            name=f"subtour_{i}_{j}")
+    # ----------------------------
+    # 4. Solve
+    # ----------------------------
+    model.optimize()
 
-# Load variable limits (must be at least demand and at most vehicle capacity)
-for i in selected_customers[1:]:
-    model.addConstr(u[i] >= demand_small[i], name=f"minload_{i}")
-    model.addConstr(u[i] <= vehicle_capacity, name=f"maxload_{i}")
-
-# Objective function: minimize total travel distance
-model.setObjective(sum(distance_small[i, j] * x[i, j] for i, j in distance_small), GRB.MINIMIZE)
-
-# Optimize the model
-model.optimize()
-
-# Display results if optimal solution is found
-if model.status == GRB.OPTIMAL:
-    print(f"✅ Optimal solution found. Total cost: {model.ObjVal:.2f}")
-    for v in model.getVars():
-        if v.X > 0.1:
-            print(f"{v.VarName}: {v.X}")
-else:
-  print("❌ No feasible solution found.")
+    if model.status == GRB.OPTIMAL:
+        return model.ObjVal
+    else:
+        return None
