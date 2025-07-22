@@ -249,5 +249,5 @@ print(f"Minimum total distance: {model.ObjVal}")
 ```
 Answer:
 Decreasing vehicle capacity to 6 limits load per vehicle and customer 7's demand decreased by 30%, increasing the minimum total distance to 4950.0 from 4807.0. This means routes are longer by 143.0 units due to capacity constraints.
-
+----------
 
