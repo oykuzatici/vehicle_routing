@@ -1,7 +1,7 @@
 Question: What happens if demand for customer1 increases by 20%?
 Answer Code:
 python
-solve_vrp_with_demand_change(updated_demand={1: 1.20})
+solve_vrp_with_demand_change(updated_demand={1: demand[1] * (1 + 0.20)})
 ```
 Answer:
 With the updated demand, customer 1's demand has increased by 20%. The optimization yields a new minimum total distance of 4950.0, compared to the original 4807.0. This means the total distance increased by 143.0 units due to the higher demand.
@@ -9,7 +9,7 @@ With the updated demand, customer 1's demand has increased by 20%. The optimizat
 Question: What is the minimum route if customer 2's demand increases by 30% and customer 6's demand increases by 60%?
 Answer Code:
 python
-solve_vrp_with_demand_change(updated_demand={2: 1.30, 3:1.60})
+solve_vrp_with_demand_change(updated_demand={2:demand[2] * (1 + 0.30), 6: demand[6] * (1 + 0.60)})
 ```
 Answer:
 With the updated demands, customer 2's demand increased by 30% and customer 6's demand increased by 60%. The optimization yields a new minimum total distance of 4950.0, compared to the original 4807.0. This means the total distance increased by 143.0 units due to the higher demand.
@@ -17,7 +17,7 @@ With the updated demands, customer 2's demand increased by 30% and customer 6's 
 Question: What is the minimum route if customer 2's demand increases by 30% and customer 6's demand decreases by 60%?
 Answer Code:
 python
-solve_vrp_with_demand_change(updated_demand={2: 1.30, 3:0.40})
+solve_vrp_with_demand_change(updated_demand={2: demand[2] * (1 + 0.30), 6: demand[6] * (1 - 0.60)})
 ```
 Answer:
 With the updated demands, customer 2's demand increased by 30% and customer 6's demand decreased by 60%. The new minimum total distance is 4856.0, reduced from the original 4807.0. This adjustment results in a longer route by 49.0 units.
@@ -25,7 +25,7 @@ With the updated demands, customer 2's demand increased by 30% and customer 6's 
 Question: What is the minimum route if customer 2's demand decreases by 30% and customer 6's demand decreases by 60%?
 Answer Code:
 python
-solve_vrp_with_demand_change(updated_demand={2: 0.70, 3:0.40})
+solve_vrp_with_demand_change(updated_demand={2: demand[2] * (1 - 0.30), 6: demand[6] * (1 - 0.60)})
 ```
 Answer:
 With the updated demands, customer 2's demand decreased by 30% and customer 6's demand decreased by 60%. The optimization yields a new minimum total distance of 4807.0, compared to the original 4807.0. This means the optimal total distance did not change despite the higher demand.
@@ -33,7 +33,7 @@ With the updated demands, customer 2's demand decreased by 30% and customer 6's 
 Question: What happens if demand for customer9 decreases by 45%?
 Answer Code:
 python
-solve_vrp_with_demand_change(updated_demand={9: 0.55})
+solve_vrp_with_demand_change(updated_demand={9: demand[9] * (1 - 0.45)})
 ```
 Answer:
 With the updated demand, customer 9's demand has decreased by 45%. The optimization yields a new minimum total distance of 4807.0, compared to the original 4807.0. This means the optimal total distance did not change despite the higher demand.
@@ -41,7 +41,7 @@ With the updated demand, customer 9's demand has decreased by 45%. The optimizat
 Question: What is the minimum route if customer 9's demand increases by 30%, customer 7's demand increases by 45%  and customer 8's demand increases by 40%?
 Answer Code:
 python
-solve_vrp_with_demand_change(updated_demand={9: 1.30, 7: 1.45, 8: 1.40})
+solve_vrp_with_demand_change(updated_demand={9: demand[9] * (1 + 0.30), 7: demand[7] * (1 + 0.45), 8: demand[8] * (1 + 0.40)})
 ```
 Answer:
 With the updated demands, customer 9's demand increased by 30%, customer 7's demand increased by 45%  and customer 8's demand increased by 60%. The optimization yields a new minimum total distance of 4953.0, compared to the original 4807.0. This means the total distance increased by 146.0 units due to the higher demand.
@@ -50,7 +50,7 @@ With the updated demands, customer 9's demand increased by 30%, customer 7's dem
 Question: What is the minimum route if customer 9's demand decreases by 30%, customer 7's demand decreases by 45%  and customer 8's demand decreases by 40%?
 Answer Code:
 python
-solve_vrp_with_demand_change(updated_demand={9: 0.70, 7: 0.55, 8: 0.60})
+solve_vrp_with_demand_change(updated_demand={9: demand[9] * (1 - 0.30), 7: demand[7] * (1 - 0.45), 8: demand[8] * (1 - 0.40)})
 ```
 Answer:
 With the updated demands, customer 9's demand decreased by 30%, customer 7's demand decreased by 45%  and customer 8's demand decreased by 60%. The optimization yields a new minimum total distance of 4807.0, compared to the original 4807.0. This means the optimal total distance did not change despite the higher demand.
@@ -58,7 +58,7 @@ With the updated demands, customer 9's demand decreased by 30%, customer 7's dem
 Question: What is the minimum route if customer 9's demand increases by 30%, customer 7's demand increases by 45%  and customer 8's demand decreases by 40%?
 Answer Code:
 python
-solve_vrp_with_demand_change(updated_demand={9: 1.30, 7: 1.45, 8: 0.60})
+solve_vrp_with_demand_change(updated_demand={9: demand[9] * (1 + 0.30), 7:  demand[7] * (1 + 0.45), 8: demand[8] * (1 - 0.40)})
 ```
 Answer:
 With the updated demands, customer 9's demand increased by 30%, customer 7's demand increased by 45%  and customer 8's demand decreased by 60%. The optimization yields a new minimum total distance of 4807.0, compared to the original 4807.0. This means the optimal total distance did not change despite the higher demand.
@@ -66,7 +66,7 @@ With the updated demands, customer 9's demand increased by 30%, customer 7's dem
 Question: What is the minimum route if customer 9's demand increases by 30%, customer 7's demand decreases by 45%  and customer 8's demand decreases by 40%?
 Answer Code:
 python
-solve_vrp_with_demand_change(updated_demand={9: 1.30, 7: 0.55, 8: 0.60})
+solve_vrp_with_demand_change(updated_demand={9: demand[9] * (1 + 0.30), 7: demand[7] * (1 - 0.45), 8: demand[8] * (1 - 0.40)})
 ```
 Answer:
 With the updated demands, customer 9's demand increased by 30%, customer 7's demand decreased by 45%  and customer 8's demand decreased by 60%. The optimization yields a new minimum total distance of 4807.0, compared to the original 4807.0. This means the optimal total distance did not change despite the higher demand.
@@ -74,7 +74,7 @@ With the updated demands, customer 9's demand increased by 30%, customer 7's dem
 Question: What is the minimum route if customer 9's demand increases by 30%, customer 7's demand decreases by 45%  and customer 8's demand increases by 40%?
 Answer Code:
 python
-solve_vrp_with_demand_change(updated_demand={9: 1.30, 7: 0.55, 8: 1.40})
+solve_vrp_with_demand_change(updated_demand={9: demand[9] * (1 + 0.30), 7: demand[7] * (1 - 0.45), 8: demand[8] * (1 + 0.40)})
 ```
 Answer:
 With the updated demands, customer 9's demand increased by 30%, customer 7's demand decreased by 45%  and customer 8's demand increased by 60%. The optimization yields a new minimum total distance of 4856.0, compared to the original 4807.0. This means the total distance increased by 49.0 units due to the higher demand.
@@ -122,7 +122,7 @@ Decreasing vehicle count to 3 limits total vehicle availability, increasing the 
 Question: What is the minimum route if the vehicle count is decreased to 3 and customer 9's demand increases by 30%?
 Answer Code:
 ```python
-solve_vrp_with_demand_change(vehicle_count=3, updated_demand={9: 1.30})
+solve_vrp_with_demand_change(vehicle_count=3, updated_demand={9: demand[9] * (1 + 0.30)})
 ```
 Answer:
 Decreasing vehicle count to 3 limits load per vehicle and customer 9's demand increased by 30%, decreasing the minimum total distance to 4597.0 from 4807.0. This means routes are shorter by 210.0 units due to capacity constraints.
@@ -130,7 +130,7 @@ Decreasing vehicle count to 3 limits load per vehicle and customer 9's demand in
 Question: What is the minimum route if the vehicle count is decreased to 3 and customer 9's demand decreases by 30%?
 Answer Code:
 ```python
-solve_vrp_with_demand_change(vehicle_count=3, updated_demand={9: 0.70})
+solve_vrp_with_demand_change(vehicle_count=3, updated_demand={9: demand[9] * (1 - 0.30)})
 ```
 Answer:
 Decreasing vehicle capacity to 3 limits load per vehicle and customer 9's demand decreased by 30%, decreasing the minimum total distance to 4227.0 from 4807.0. This means routes are shorter by 580.0 units due to capacity constraints.
@@ -138,7 +138,7 @@ Decreasing vehicle capacity to 3 limits load per vehicle and customer 9's demand
 Question: What is the minimum route if the vehicle count is increased to 10 and customer 9's demand increases by 30%?
 Answer Code:
 ```python
-solve_vrp_with_demand_change(vehicle_count=10, updated_demand={9: 1.30})
+solve_vrp_with_demand_change(vehicle_count=10, updated_demand={9: demand[9] * (1 + 0.30)})
 ```
 Answer:
 Increasing vehicle capacity to 10 limits load per vehicle and customer 9's demand increased by 30%, increasing the minimum total distance to 9094.0 from 4807.0. This means routes are longer by 4287.0 units due to capacity constraints.
@@ -146,7 +146,7 @@ Increasing vehicle capacity to 10 limits load per vehicle and customer 9's deman
 Question: What is the minimum route if the vehicle count is increased to 10 and customer 9's demand decreases by 30%?
 Answer Code:
 ```python
-solve_vrp_with_demand_change(vehicle_count=10, updated_demand={9: 0.70})
+solve_vrp_with_demand_change(vehicle_count=10, updated_demand={9: demand[9] * (1 - 0.30)})
 ```
 Answer:
 Increasing vehicle capacity to 10 increases load per vehicle and customer 9's demand decreased by 30%, decreasing the minimum total distance to 9094.0 from 4807.0 . This means routes are longer by 580.0 units due to capacity constraints.
@@ -154,7 +154,7 @@ Increasing vehicle capacity to 10 increases load per vehicle and customer 9's de
 Question: What is the minimum route if the vehicle capacity is increased to 6 and customer 7's demand increases by 45%?
 Answer Code:
 ```python
-solve_vrp_with_demand_change(vehicle_capacity=6, updated_demand={7: 1.45})
+solve_vrp_with_demand_change(vehicle_capacity=6, updated_demand={7: demand[7] * (1 + 0.45)})
 ```
 Answer:
 Increasing vehicle capacity to 6 limits load per vehicle and customer 7's demand increased by 30%, resulting in a minimum total distance of 4807.0, which is the same as the original 4807.0. This means the optimal total distance did not change despite the higher demand.
@@ -162,7 +162,7 @@ Increasing vehicle capacity to 6 limits load per vehicle and customer 7's demand
 Question: What is the minimum route if the vehicle capacity is increased to 6 and customer 7's demand decreases by 45%?
 Answer Code:
 ```python
-solve_vrp_with_demand_change(vehicle_capacity=6, updated_demand={7: 0.55})
+solve_vrp_with_demand_change(vehicle_capacity=6, updated_demand={7: demand[7] * (1 + 0.45)})
 ```
 Answer:
 Increasing vehicle capacity to 6 limits load per vehicle and customer 7's demand decreased by 30%, decreasing the minimum total distance to 4603.0 from 4807.0. This means routes are shorter by 204.0 units due to capacity constraints.
@@ -170,7 +170,7 @@ Increasing vehicle capacity to 6 limits load per vehicle and customer 7's demand
 Question: What is the minimum route if the vehicle capacity is decreased to 3 and customer 7's demand increases by 45%?
 Answer Code:
 ```python
-solve_vrp_with_demand_change(vehicle_capacity=3, updated_demand={7: 1.45})
+solve_vrp_with_demand_change(vehicle_capacity=3, updated_demand={7: demand[7] * (1 + 0.45)})
 ```
 Answer:
 Decreasing vehicle capacity to 3 limits load per vehicle and customer 7's demand increased by 30%, increasing the minimum total distance to 5245.0 from 4807.0. This means routes are longer by 438.0 units due to capacity constraints.
@@ -178,7 +178,7 @@ Decreasing vehicle capacity to 3 limits load per vehicle and customer 7's demand
 Question: What is the minimum route if the vehicle capacity is increased to 3 and customer 7's demand decreases by 45%?
 Answer Code:
 ```python
-solve_vrp_with_demand_change(vehicle_capacity=3, updated_demand={7: 0.55})
+solve_vrp_with_demand_change(vehicle_capacity=3, updated_demand={demand[7] * (1 - 0.45)})
 ```
 Answer:
 Decreasing vehicle capacity to 6 limits load per vehicle and customer 7's demand decreased by 30%, increasing the minimum total distance to 4950.0 from 4807.0. This means routes are longer by 143.0 units due to capacity constraints.
