@@ -7,75 +7,186 @@ Original file is located at
     https://colab.research.google.com/drive/1oU16vroBezcQlDd9S6TBJEMoB4qhQ7Kf
 """
 
-import gurobipy as gp
-from gurobipy import GRB
+from gurobipy import Model, GRB, quicksum, tuplelist
+import math
 
-def solve_cvrp(n, K, C, cost, demand):
-    """
-    Capacitated Vehicle Routing Problem (CVRP) solver using Gurobi and MTZ constraints.
+# -------------------------------------------------
+# SABİT VERİ (E-n13-k4) – TSPLIB’den gömülü alındı
+# -------------------------------------------------
+n = 13
+depot = 0
+K = 4
+C = 6000
 
-    Parameters:
-        n (int): Number of nodes (including depot)
-        K (int): Number of vehicles
-        C (int): Vehicle capacity
-        cost (list of lists): Cost matrix (n x n)
-        demand (list): Demand of each node (length n, depot demand = 0)
+# TSPLIB E-n13-k4 DEMAND_SECTION (1-based -> 0-based çevrildi)
+demand0 = [0, 1200, 1700, 1500, 1400, 1700, 1400, 1200, 1900, 1800, 1600, 1700, 1100]
 
-    Returns:
-        obj (float): Optimal cost
-        routes (list of tuples): Selected edges (i, j)
-    """
+# TSPLIB EDGE_WEIGHT_SECTION (LOWER_ROW) düz liste (78 sayı)
+numbers = [
+     9, 14, 21, 23, 22, 25, 32, 36, 38, 42, 50, 52,
+     5, 12, 22, 21, 24, 31, 35, 37, 41, 49, 51,
+     7, 17, 16, 23, 26, 30, 36, 36, 44, 46,
+     10, 21, 30, 27, 37, 43, 31, 37, 39,
+     19, 28, 25, 35, 41, 29, 31,
+     29,  9, 10, 16, 22, 20, 28,
+     30,  7, 11, 13, 17, 25,
+     27, 10, 16, 10, 18,
+     20,  6,  6, 14,
+     16, 12, 12, 20,
+      8, 10, 10
+]
 
+# LOWER_ROW -> simetrik maliyet matrisi
+def build_cost_from_lower_row(numbers, n):
+    cost = [[0]*n for _ in range(n)]
+    idx = 0
+    for i in range(2, n+1):      # 2..n (1-based)
+        for j in range(1, i):    # 1..i-1
+            cij = numbers[idx]
+            idx += 1
+            cost[i-1][j-1] = cij
+            cost[j-1][i-1] = cij
+    return cost
+
+cost = build_cost_from_lower_row(numbers, n)
+
+# -------------------------------------------------
+# CVRP MODELİ: (1.3)–(1.14) TÜM FORMÜLLER
+#   - (1.3) Amaç
+#   - (1.4)-(1.7) Derece & Depot
+#   - (1.8) CCC (lazy)
+#   - (1.9) Binary
+#   - (1.12) GSEC (lazy)
+#   - (1.13)-(1.14) MTZ
+# -------------------------------------------------
+def solve_cvrp_all_formulas(cost, demand, C, K, depot, title=""):
+    n = len(demand)
     nodes = range(n)
-    customers = range(1, n)
+    customers = [i for i in nodes if i != depot]
+    A = tuplelist((i, j) for i in nodes for j in nodes if i != j)
 
-    # ----------------------------
-    # MODEL
-    # ----------------------------
-    m = gp.Model("CVRP")
+    def r_of(S):
+        return math.ceil(sum(demand[i] for i in S) / C)
 
-    # Karar değişkenleri
-    x = m.addVars(nodes, nodes, vtype=GRB.BINARY, name="x")
-    u = m.addVars(customers, vtype=GRB.CONTINUOUS, name="u")
+    m = Model(f"CVRP_{title}")
+    m.Params.LazyConstraints = 1
+    # m.Params.OutputFlag = 0  # sessiz mod istersen aç
 
-    # Amaç fonksiyonu
-    m.setObjective(gp.quicksum(cost[i][j]*x[i,j] for i in nodes for j in nodes if i!=j), GRB.MINIMIZE)
+    # (1.9) x_ij ∈ {0,1}
+    x = m.addVars(A, vtype=GRB.BINARY, name="x")
 
-    # Her müşteri bir kez girilir ve çıkılır
+    # (1.13)-(1.14) MTZ yükleri
+    u = m.addVars(customers, lb={i: demand[i] for i in customers}, ub=C, name="u")
+
+    # (1.3) Amaç
+    m.setObjective(quicksum(cost[i][j] * x[i, j] for i, j in A), GRB.MINIMIZE)
+
+    # (1.4) Her müşteri için giriş = 1
+    for j in customers:
+        m.addConstr(quicksum(x[i, j] for i in nodes if i != j) == 1, name=f"in_{j}")
+
+    # (1.5) Her müşteri için çıkış = 1
     for i in customers:
-        m.addConstr(gp.quicksum(x[i,j] for j in nodes if j!=i) == 1)
-        m.addConstr(gp.quicksum(x[j,i] for j in nodes if j!=i) == 1)
+        m.addConstr(quicksum(x[i, j] for j in nodes if j != i) == 1, name=f"out_{i}")
 
-    # Depo giriş-çıkış = K
-    m.addConstr(gp.quicksum(x[0,j] for j in customers) == K)
-    m.addConstr(gp.quicksum(x[j,0] for j in customers) == K)
+    # (1.6)-(1.7) Depodan çıkan ve dönen araç sayısı = K
+    m.addConstr(quicksum(x[depot, j] for j in customers) == K, name="depot_out")
+    m.addConstr(quicksum(x[i, depot] for i in customers) == K, name="depot_in")
 
-    # MTZ kapasite kısıtları
-    for i in customers:
-        m.addConstr(u[i] >= demand[i])
-        m.addConstr(u[i] <= C)
-
+    # (1.13)-(1.14) MTZ
     for i in customers:
         for j in customers:
             if i != j:
-                m.addConstr(u[i] - u[j] + C*x[i,j] <= C - demand[j])
+                m.addConstr(u[i] - u[j] + C * x[i, j] <= C - demand[j], name=f"mtz_{i}_{j}")
 
-    # Araç aynı düğüme gitmesin
-    for i in nodes:
-        m.addConstr(x[i,i] == 0)
+    # (1.8) CCC ve (1.12) GSEC lazy callback
+    def cb(model, where):
+        if where == GRB.Callback.MIPSOL:
+            vals = model.cbGetSolution(x)
 
-    # ----------------------------
-    # ÇÖZ
-    # ----------------------------
-    m.optimize()
+            # undirected adjacency to detect components
+            adj = {i: set() for i in nodes}
+            for (a, b) in A:
+                if vals[a, b] > 1e-6:
+                    adj[a].add(b)
+                    adj[b].add(a)
 
-    routes = []
+            visited = set()
+
+            def dfs(s):
+                stack = [s]
+                comp = {s}
+                visited.add(s)
+                while stack:
+                    v = stack.pop()
+                    for w in adj[v]:
+                        if w not in visited:
+                            visited.add(w)
+                            comp.add(w)
+                            stack.append(w)
+                return comp
+
+            for i in nodes:
+                if i not in visited:
+                    Sfull = dfs(i)
+                    if depot in Sfull:
+                        continue
+                    S = Sfull.intersection(customers)
+                    if not S:
+                        continue
+
+                    rS = r_of(S)
+
+                    # (1.8) CCC: sum_{i in S} sum_{j∉S} x_ij ≥ r(S)
+                    lhs_out_val = sum(vals[i, j] for i in S for j in nodes if j not in S)
+                    if lhs_out_val < rS - 1e-6:
+                        model.cbLazy(quicksum(x[i, j] for i in S for j in nodes if j not in S) >= rS)
+
+                    # (1.12) GSEC: sum_{i∈S} sum_{j∈S} x_ij ≤ |S| - r(S)
+                    lhs_in_val = sum(vals[i, j] for i in S for j in S if i != j)
+                    rhs_in = len(S) - rS
+                    if lhs_in_val > rhs_in + 1e-6:
+                        model.cbLazy(quicksum(x[i, j] for i in S for j in S if i != j) <= rhs_in)
+
+    m.optimize(cb)
+
+    # ---- ÇIKTI ----
     if m.status == GRB.OPTIMAL:
-        obj = m.objVal
-        for i in nodes:
-            for j in nodes:
-                if i != j and x[i,j].X > 0.5:
-                    routes.append((i, j))
-        return obj, routes
+        print(f"\n### {title} ###")
+        print(f"Optimal cost = {m.ObjVal:.2f}")
+
+        succ = {i: None for i in nodes}
+        for (i, j) in A:
+            if x[i, j].X > 0.5:
+                succ[i] = j
+
+        routes, used = [], set()
+        starts = [j for j in customers if x[depot, j].X > 0.5]
+        for s in starts:
+            r = [depot, s]
+            cur = s
+            while True:
+                nxt = succ[cur]
+                if nxt is None:
+                    break
+                r.append(nxt)
+                cur = nxt
+                if cur == depot:
+                    break
+            t = tuple(r)
+            if t not in used:
+                used.add(t)
+                routes.append(r)
+
+        tot = 0
+        for rid, r in enumerate(routes, 1):
+            load = sum(demand[i] for i in r if i != depot)
+            dist = sum(cost[r[k]][r[k+1]] for k in range(len(r)-1))
+            tot += dist
+            print(f"Route {rid}: {r} | load={load} | dist={dist}")
+        print(f"Cost check = {tot}")
     else:
-        return None, []
+        print(f"\n### {title} ###")
+        print("No optimal solution found.")
+
+    return m
