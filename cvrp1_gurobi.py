@@ -10,144 +10,72 @@ Original file is located at
 import gurobipy as gp
 from gurobipy import GRB
 
-# DATA
-n = 13          # Total number of nodes (1 depot + 12 customers)
-K = 4           # Number of vehicles
-C = 6000        # Vehicle capacity
-
-# Cost matrix (distance or cost between nodes)
-cost = [
-    [0, 9, 14, 21, 23, 22, 25, 32, 36, 38, 42, 50, 52],
-    # ... (other rows omitted for brevity)
-]
-
-# Demand of each customer (depot demand = 0)
-demand = [0, 1200, 1700, 1500, 1400, 1700, 1400, 1200, 1900, 1800, 1600, 1700, 1100]
-
-# Create model
-m = gp.Model("CVRP")
-
-# Decision variables: x[i,j] = 1 if a vehicle travels directly from node i to node j
-x = m.addVars(n, n, vtype=GRB.BINARY, name="x")
-
-# Auxiliary variables u[i] for MTZ subtour elimination and capacity constraints
-u = m.addVars(n, vtype=GRB.CONTINUOUS, name="u")
-
-# Objective: minimize total travel cost
-m.setObjective(
-    gp.quicksum(cost[i][j] * x[i, j] for i in range(n) for j in range(n) if i != j),
-    GRB.MINIMIZE
-)
-
-# Constraints:
-
-# 1) Each customer is visited exactly once (both leaving and arriving)
-for i in range(1, n):
-    m.addConstr(gp.quicksum(x[i, j] for j in range(n) if j != i) == 1)
-    m.addConstr(gp.quicksum(x[j, i] for j in range(n) if j != i) == 1)
-
-# 2) Number of vehicles leaving and returning to depot equals K
-m.addConstr(gp.quicksum(x[0, j] for j in range(1, n)) == K)
-m.addConstr(gp.quicksum(x[i, 0] for i in range(1, n)) == K)
-
-# 3) MTZ constraints for vehicle capacity and subtour elimination
-for i in range(1, n):
-    m.addConstr(u[i] >= demand[i])    # Load must be at least the demand of node i
-    m.addConstr(u[i] <= C)            # Load must not exceed vehicle capacity
-
-for i in range(1, n):
-    for j in range(1, n):
-        if i != j:
-            m.addConstr(u[i] - u[j] + C * x[i, j] <= C - demand[j])
-
-# 4) Set depot load to zero
-m.addConstr(u[0] == 0)
-
-# Optimize the model
-m.optimize()
-
-# Print solution
-if m.status == GRB.OPTIMAL:
-    print(f"Optimal cost: {m.objVal}")
-    for i in range(n):
-        for j in range(n):
-            if i != j and x[i, j].X > 0.5:
-                print(f"{i} -> {j}")
-
-def solve_cvrp(cost, demand, K, C):
+def solve_cvrp(n, K, C, cost, demand):
     """
-    Solve Capacitated Vehicle Routing Problem (CVRP) using Gurobi and MTZ constraints.
+    Capacitated Vehicle Routing Problem (CVRP) solver using Gurobi and MTZ constraints.
 
     Parameters:
-    - cost: 2D list or matrix representing travel costs between nodes
-    - demand: list of demands for each node (depot demand should be 0)
-    - K: number of vehicles available
-    - C: capacity of each vehicle
+        n (int): Number of nodes (including depot)
+        K (int): Number of vehicles
+        C (int): Vehicle capacity
+        cost (list of lists): Cost matrix (n x n)
+        demand (list): Demand of each node (length n, depot demand = 0)
 
     Returns:
-    - total_cost: minimal total travel cost (float)
-    - routes: list of routes, each route is a list of nodes starting and ending at depot (0)
+        obj (float): Optimal cost
+        routes (list of tuples): Selected edges (i, j)
     """
 
-    import gurobipy as gp
-    from gurobipy import GRB
+    nodes = range(n)
+    customers = range(1, n)
 
-    n = len(demand)
+    # ----------------------------
+    # MODEL
+    # ----------------------------
     m = gp.Model("CVRP")
 
-    # Decision variables
-    x = m.addVars(n, n, vtype=GRB.BINARY, name="x")
-    u = m.addVars(n, vtype=GRB.CONTINUOUS, name="u")
+    # Karar değişkenleri
+    x = m.addVars(nodes, nodes, vtype=GRB.BINARY, name="x")
+    u = m.addVars(customers, vtype=GRB.CONTINUOUS, name="u")
 
-    # Objective function
-    m.setObjective(
-        gp.quicksum(cost[i][j] * x[i, j] for i in range(n) for j in range(n) if i != j),
-        GRB.MINIMIZE
-    )
+    # Amaç fonksiyonu
+    m.setObjective(gp.quicksum(cost[i][j]*x[i,j] for i in nodes for j in nodes if i!=j), GRB.MINIMIZE)
 
-    # Constraints
-    for i in range(1, n):
-        m.addConstr(gp.quicksum(x[i, j] for j in range(n) if j != i) == 1)
-        m.addConstr(gp.quicksum(x[j, i] for j in range(n) if j != i) == 1)
+    # Her müşteri bir kez girilir ve çıkılır
+    for i in customers:
+        m.addConstr(gp.quicksum(x[i,j] for j in nodes if j!=i) == 1)
+        m.addConstr(gp.quicksum(x[j,i] for j in nodes if j!=i) == 1)
 
-    m.addConstr(gp.quicksum(x[0, j] for j in range(1, n)) == K)
-    m.addConstr(gp.quicksum(x[i, 0] for i in range(1, n)) == K)
+    # Depo giriş-çıkış = K
+    m.addConstr(gp.quicksum(x[0,j] for j in customers) == K)
+    m.addConstr(gp.quicksum(x[j,0] for j in customers) == K)
 
-    for i in range(1, n):
+    # MTZ kapasite kısıtları
+    for i in customers:
         m.addConstr(u[i] >= demand[i])
         m.addConstr(u[i] <= C)
 
-    for i in range(1, n):
-        for j in range(1, n):
+    for i in customers:
+        for j in customers:
             if i != j:
-                m.addConstr(u[i] - u[j] + C * x[i, j] <= C - demand[j])
+                m.addConstr(u[i] - u[j] + C*x[i,j] <= C - demand[j])
 
-    m.addConstr(u[0] == 0)
+    # Araç aynı düğüme gitmesin
+    for i in nodes:
+        m.addConstr(x[i,i] == 0)
 
-    # Optimize model
+    # ----------------------------
+    # ÇÖZ
+    # ----------------------------
     m.optimize()
 
+    routes = []
     if m.status == GRB.OPTIMAL:
-        total_cost = m.objVal
-        routes = []
-
-        # Extract routes from solution
-        for _ in range(K):
-            route = [0]
-            current = 0
-            while True:
-                next_nodes = [j for j in range(n) if j != current and x[current, j].X > 0.5]
-                if not next_nodes:
-                    break
-                next_node = next_nodes[0]
-                if next_node == 0:
-                    route.append(0)
-                    break
-                else:
-                    route.append(next_node)
-                    current = next_node
-            routes.append(route)
-
-        return total_cost, routes
+        obj = m.objVal
+        for i in nodes:
+            for j in nodes:
+                if i != j and x[i,j].X > 0.5:
+                    routes.append((i, j))
+        return obj, routes
     else:
-        return None, None
+        return None, []
